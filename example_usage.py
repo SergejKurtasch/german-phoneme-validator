@@ -5,6 +5,12 @@ This script demonstrates how to use the validate_phoneme() function
 according to the Research Brief specification.
 
 Usage:
+    # Simplest way - copy project folder to your project directory:
+    # Then add to path and import:
+    #   import sys
+    #   sys.path.insert(0, "path/to/german-phoneme-validator")
+    #   from __init__ import validate_phoneme
+    
     # If installed as package:
     python -m german_phoneme_validator.example_usage
     

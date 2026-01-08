@@ -551,7 +551,7 @@ class PhonemeValidator:
                 }
             
             # Extract audio segment around position_ms
-            window_ms = 150.0  # Default window size
+            window_ms = 100.0  # Default window size
             start_ms = max(0, position_ms - window_ms)
             end_ms = min(duration_ms, position_ms + window_ms)
             

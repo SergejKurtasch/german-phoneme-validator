@@ -35,6 +35,39 @@ pip install -e ".[optional]"
 
 ## Quick Start
 
+**Simplest way - Copy project folder to your project directory:**
+
+Just copy the entire `pronouncise-german-phoneme-validator` folder to the same directory as your project, then import directly:
+
+```python
+# If both projects are in the same directory:
+# your_project/
+#   your_script.py
+#   pronouncise-german-phoneme-validator/
+#     __init__.py
+#     core/
+#     ...
+
+# In your_script.py:
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent / "pronouncise-german-phoneme-validator"))
+
+from __init__ import validate_phoneme
+import numpy as np
+
+audio_array = np.random.randn(3 * 16000).astype(np.float32)
+result = validate_phoneme(
+    audio=audio_array,
+    phoneme="/b/",
+    position_ms=1500.0,
+    expected_phoneme="/b/"
+)
+
+print(f"Correct: {result['is_correct']}")
+print(f"Confidence: {result['confidence']:.2%}")
+```
+
 **If installed as package:**
 ```python
 from german_phoneme_validator import validate_phoneme
