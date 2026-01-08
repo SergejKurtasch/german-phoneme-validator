@@ -13,7 +13,7 @@ german-phoneme-validator/
 │   ├── models.py                 # Model architectures (HybridCNNMLP_V4_3)
 │   ├── feature_extraction.py     # Feature extraction functions
 │   └── validator.py              # Main validation logic
-├── artifacts/                     # Trained models (copy from main project)
+├── artifacts/                     # Trained models (included in repository)
 │   └── [phoneme_pair]_dl_models_with_context_v2/
 │       ├── improved_models/
 │       │   └── hybrid_cnn_mlp_v4_3_enhanced/
@@ -93,6 +93,8 @@ from core.validator import validate_phoneme
 
 ## Next Steps
 
-1. Copy the `artifacts/` directory from the main SpeechRec-German project
+1. Clone the repository: `git clone https://github.com/SergejKurtasch/german-phoneme-validator.git`
 2. Install package: `pip install -e .` or dependencies: `pip install -r requirements.txt`
 3. Test with `python example_usage.py`
+
+**Note**: The `artifacts/` directory with trained models is already included in the repository. No additional setup is required.

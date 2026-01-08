@@ -150,9 +150,26 @@ Use `validator.get_available_pairs()` to see available pairs in your installatio
 
 ## Setup
 
-1. **Copy trained models**: Copy the `artifacts/` directory from the main SpeechRec-German project
-2. **Install**: `pip install -e .` or `pip install -r requirements.txt`
-3. **Verify**: `python -c "from german_phoneme_validator import validate_phoneme; print('OK')"`
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/SergejKurtasch/german-phoneme-validator.git
+   cd german-phoneme-validator
+   ```
+
+2. **Install dependencies**: 
+   ```bash
+   pip install -e .
+   # or
+   pip install -r requirements.txt
+   ```
+
+3. **Verify installation**:
+   ```python
+   from german_phoneme_validator import validate_phoneme
+   print("Installation successful!")
+   ```
+
+**Note**: The `artifacts/` directory with trained models is included in the repository. The module will automatically detect available phoneme pairs from the `artifacts/` directory. Currently, the repository includes trained models for 22 phoneme pairs.
 
 ## Documentation
 

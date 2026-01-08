@@ -99,7 +99,8 @@ def example_3_validator_class():
     print()
     
     if len(available_pairs) == 0:
-        print("No trained models found. Please copy artifacts directory from main project.")
+        print("No trained models found. Please ensure the artifacts/ directory is present in the project root.")
+        print("The artifacts/ directory should be included when cloning the repository.")
         print()
         return
     

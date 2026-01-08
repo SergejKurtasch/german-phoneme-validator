@@ -2,18 +2,28 @@
 
 ## Quick Setup
 
-1. **Install dependencies**:
+1. **Clone the repository**:
    ```bash
+   git clone https://github.com/SergejKurtasch/german-phoneme-validator.git
+   cd german-phoneme-validator
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   pip install -e .
+   # or
    pip install -r requirements.txt
    ```
 
-2. **Copy trained models**:
-   Copy the `artifacts/` directory from the main SpeechRec-German project to this directory:
-   ```bash
-   cp -r /path/to/SpeechRec-German/artifacts ./artifacts
+3. **Verify installation**:
+   ```python
+   from german_phoneme_validator import validate_phoneme
+   print("Installation successful!")
    ```
 
-   The artifacts directory should contain subdirectories for each phoneme pair, for example:
+**Note**: The `artifacts/` directory with trained models is already included in the repository. No additional setup is required.
+
+The artifacts directory contains subdirectories for each phoneme pair, for example:
    ```
    artifacts/
    ├── b-p_dl_models_with_context_v2/
@@ -51,7 +61,7 @@ german-phoneme-validator/
 │   ├── models.py
 │   ├── feature_extraction.py
 │   └── validator.py
-├── artifacts/              # Copied from main project
+├── artifacts/              # Trained models (included in repository)
 │   ├── b-p_dl_models_with_context_v2/
 │   ├── d-t_dl_models_with_context_v2/
 │   └── ...
@@ -66,8 +76,9 @@ german-phoneme-validator/
 
 ## Notes
 
-- The `artifacts/` directory contains trained models and should be copied from the main SpeechRec-German project
+- The `artifacts/` directory contains trained models and is included in the repository
 - Models are loaded lazily (on first use) and cached in memory
 - The module automatically detects available phoneme pairs from the artifacts directory
+- Currently, the repository includes trained models for 22 phoneme pairs
 - If no models are found, the validator will still work but will return errors when trying to validate phonemes
 

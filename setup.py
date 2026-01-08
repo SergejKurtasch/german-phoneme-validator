@@ -40,7 +40,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Sergej Kurtasch",
-    author_email="sergej.kurtasch@gmail.com",  # Update with your actual email
+    author_email="sergej.kurtasch@gmail.com",
     url="https://github.com/SergejKurtasch/german-phoneme-validator",
     license="MIT",
     # Map Python package name (with underscores) to source directory (with hyphens)
