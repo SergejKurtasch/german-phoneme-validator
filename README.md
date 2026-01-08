@@ -179,4 +179,6 @@ The function handles errors gracefully:
 
 ## License
 
+MIT License - see LICENSE file for details.
+
 This module is part of the German Speech Recognition project.

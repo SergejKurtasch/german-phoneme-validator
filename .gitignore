@@ -37,13 +37,6 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Models and artifacts (large files)
-artifacts/
-*.pt
-*.pth
-*.joblib
-*.pkl
-
 # Development files (not needed in production module)
 task/
 

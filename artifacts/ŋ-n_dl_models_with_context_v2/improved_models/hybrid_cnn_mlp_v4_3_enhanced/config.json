@@ -1,0 +1,19 @@
+{
+  "model_type": "HybridCNNMLP_V4_3",
+  "num_classes": 2,
+  "n_features": 129,
+  "input_shapes": {
+    "spectrogram": [
+      1,
+      128,
+      7
+    ],
+    "features": [
+      129
+    ]
+  },
+  "version": "4.3",
+  "best_epoch": 26,
+  "best_val_f1": 0.9527780573070298,
+  "num_epochs": 200
+}

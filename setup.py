@@ -39,8 +39,10 @@ setup(
     description="A production-ready Python module for acoustic validation of German phoneme pronunciation",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    author="German Phoneme Pronunciation Validator Development Team",
-    url="https://github.com/yourusername/german-phoneme-validator",
+    author="Sergej Kurtasch",
+    author_email="sergej.kurtasch@gmail.com",  # Update with your actual email
+    url="https://github.com/SergejKurtasch/german-phoneme-validator",
+    license="MIT",
     # Map Python package name (with underscores) to source directory (with hyphens)
     # This allows: from german_phoneme_validator import ...
     package_dir={"german_phoneme_validator": "."},
@@ -74,8 +76,8 @@ setup(
     ],
     keywords="phoneme validation, speech recognition, german language, acoustic analysis, pronunciation assessment",
     project_urls={
-        "Documentation": "https://github.com/yourusername/german-phoneme-validator#readme",
-        "Source": "https://github.com/yourusername/german-phoneme-validator",
-        "Tracker": "https://github.com/yourusername/german-phoneme-validator/issues",
+        "Documentation": "https://github.com/SergejKurtasch/german-phoneme-validator#readme",
+        "Source": "https://github.com/SergejKurtasch/german-phoneme-validator",
+        "Tracker": "https://github.com/SergejKurtasch/german-phoneme-validator/issues",
     },
 )
