@@ -1,0 +1,44 @@
+# German Phoneme Pronunciation Validator - Requirements
+# For inference only (no training dependencies)
+
+# ============================================================================
+# CORE DEPENDENCIES (Required for production module)
+# ============================================================================
+
+# Deep Learning Framework
+torch>=2.0.0  # Required: Used in core/models.py and core/validator.py
+torchaudio>=2.0.0  # Optional: Not directly used in core modules, but may be useful for audio operations
+
+# Machine Learning & Data Science
+# CRITICAL: NumPy < 2.0 required for joblib/scikit-learn compatibility
+numpy<2.0,>=1.21.0  # Required: Used throughout core modules
+# CRITICAL: scikit-learn < 1.4 required for joblib compatibility
+scikit-learn<1.4,>=1.0.0  # Required: Needed by joblib for loading scalers
+scipy>=1.7.0  # Required: Used in core/feature_extraction.py for signal processing
+joblib>=1.0.0  # Required: Used in core/validator.py for loading model scalers
+
+# Audio Processing
+librosa>=0.9.0  # Required: Used in core/feature_extraction.py and core/validator.py
+soundfile>=0.12.0  # Required: librosa dependency for reading/writing audio files
+# Note: librosa.load() requires soundfile to be installed
+
+# ============================================================================
+# OPTIONAL DEPENDENCIES (For advanced features)
+# ============================================================================
+
+# Voice Activity Detection (optional fallback)
+webrtcvad>=2.0.10  # Optional: Used in core/feature_extraction.py for VAD (has fallback)
+
+# Praat-based formant extraction (optional, has LPC fallback)
+parselmouth>=0.4.0  # Optional: Used in core/feature_extraction.py for formant extraction (has LPC fallback)
+
+# ============================================================================
+# UTILITY DEPENDENCIES (Not used in core modules, but may be useful)
+# ============================================================================
+
+# Data manipulation (not used in core/, but useful for examples/scripts)
+pandas>=1.3.0  # Optional: Not used in production code, but may be useful for data handling
+
+# Progress bars (not used in core/, but useful for scripts)
+tqdm>=4.64.0  # Optional: Not used in production code, but may be useful for progress tracking
+
