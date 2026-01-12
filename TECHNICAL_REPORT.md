@@ -403,7 +403,7 @@ The development process began with extensive experimentation on the b-p phoneme 
 
 - **Source**: German speech corpus with phoneme-level alignments
 - **Alignment Tool**: Montreal Forced Aligner (MFA)
-- **Context Window**: ±100ms around phoneme center (total ~300ms with phoneme)
+- **Context Window**: ±100ms around phoneme center (total ~200ms with phoneme)
 - **Sample Rate**: 16 kHz, mono
 - **Duration**: ~300ms per audio segment (phoneme + context)
 

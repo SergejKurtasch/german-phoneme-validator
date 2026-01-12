@@ -25,6 +25,35 @@ from .feature_extraction import (
 )
 
 
+# Class mapping for all phoneme pairs
+# Based on LabelEncoder's lexicographic ordering used during training
+# Format: {pair_name: {0: phoneme_class_0, 1: phoneme_class_1}}
+CLASS_MAPPING = {
+    'a-ɛ': {0: 'a', 1: 'ɛ'},
+    'aː-a': {0: 'a', 1: 'aː'},  # Lexicographic: 'a' < 'aː'
+    'aɪ̯-aː': {0: 'aː', 1: 'aɪ̯'},  # Lexicographic: 'aː' < 'aɪ̯'
+    'aʊ̯-aː': {0: 'aː', 1: 'aʊ̯'},  # Lexicographic: 'aː' < 'aʊ̯'
+    'b-p': {0: 'b', 1: 'p'},
+    'd-t': {0: 'd', 1: 't'},
+    'eː-ɛ': {0: 'ɛ', 1: 'eː'},  # Lexicographic: 'ɛ' < 'eː'
+    'g-k': {0: 'g', 1: 'k'},  # Lexicographic: 'g' < 'k'
+    'iː-ɪ': {0: 'ɪ', 1: 'iː'},  # Lexicographic: 'ɪ' < 'iː'
+    'kʰ-g': {0: 'kʰ', 1: 'ɡ'},  # LabelEncoder: {'kʰ': 0, 'ɡ': 1} (note: 'g' in pair name, 'ɡ' in actual data)
+    'oː-ɔ': {0: 'ɔ', 1: 'oː'},  # Lexicographic: 'ɔ' < 'oː'
+    's-ʃ': {0: 's', 1: 'ʃ'},
+    'ts-s': {0: 's', 1: 'ts'},  # Lexicographic: 's' < 'ts'
+    'tʰ-d': {0: 'd', 1: 'tʰ'},  # Lexicographic: 'd' < 'tʰ'
+    'uː-ʊ': {0: 'ʊ', 1: 'uː'},  # Lexicographic: 'ʊ' < 'uː'
+    'x-k': {0: 'k', 1: 'x'},  # Lexicographic: 'k' < 'x' (CRITICAL: pair name is 'x-k' but class 0='k', class 1='x')
+    'z-s': {0: 's', 1: 'z'},  # Lexicographic: 's' < 'z'
+    'ç-x': {0: 'x', 1: 'ç'},  # Lexicographic: 'x' < 'ç'
+    'ç-ʃ': {0: 'ç', 1: 'ʃ'},  # Lexicographic: 'ç' < 'ʃ'
+    'ŋ-n': {0: 'n', 1: 'ŋ'},  # Lexicographic: 'n' < 'ŋ'
+    'ə-ɛ': {0: 'ɛ', 1: 'ə'},  # Lexicographic: 'ɛ' < 'ə'
+    'ʁ-ɐ': {0: 'ɐ', 1: 'ʁ'},  # Lexicographic: 'ɐ' < 'ʁ'
+}
+
+
 class PhonemeValidator:
     """Validator for phoneme pairs using trained models."""
     
@@ -49,6 +78,7 @@ class PhonemeValidator:
         self.feature_cols_cache = {}
         self.available_pairs = self._discover_phoneme_pairs()
         self.device = self._get_device()
+        self.class_mapping = CLASS_MAPPING.copy()
     
     def _get_device(self) -> str:
         """Auto-detect device."""
@@ -184,6 +214,44 @@ class PhonemeValidator:
         except Exception as e:
             print(f"Error loading model for {phoneme_pair}: {e}")
             return None
+    
+    def _get_class_mapping(self, phoneme_pair: str) -> Dict[int, str]:
+        """
+        Get class-to-phoneme mapping for a phoneme pair.
+        
+        CRITICAL: This method ensures correct mapping between model output classes (0/1)
+        and actual phonemes, preventing false phoneme substitution.
+        
+        The mapping is based on LabelEncoder's lexicographic ordering used during training.
+        For example, for pair 'x-k', LabelEncoder gives {'k': 0, 'x': 1} (lexicographic: 'k' < 'x'),
+        so class 0 = 'k', class 1 = 'x', regardless of pair name order.
+        
+        Args:
+            phoneme_pair: Phoneme pair name (e.g., 'b-p' or 'x-k')
+            
+        Returns:
+            Dictionary mapping class index (0 or 1) to phoneme string
+        """
+        # First, try to get from hardcoded mapping (extracted from training notebooks)
+        if phoneme_pair in self.class_mapping:
+            return self.class_mapping[phoneme_pair]
+        
+        # Fallback: use lexicographic ordering (same as LabelEncoder)
+        # This handles any new pairs that might be added in the future
+        phonemes = phoneme_pair.split('-')
+        if len(phonemes) != 2:
+            raise ValueError(f"Invalid phoneme pair format: {phoneme_pair}")
+        
+        # Sort lexicographically (same as LabelEncoder during training)
+        sorted_phonemes = sorted(phonemes)
+        
+        # Create mapping: class 0 = first lexicographically, class 1 = second
+        mapping = {0: sorted_phonemes[0], 1: sorted_phonemes[1]}
+        
+        # Cache it for future use
+        self.class_mapping[phoneme_pair] = mapping
+        
+        return mapping
     
     def extract_audio_segment(
         self,
@@ -342,19 +410,31 @@ class PhonemeValidator:
                 probabilities = torch.softmax(logits, dim=-1)[0]
                 predicted_class = torch.argmax(logits, dim=-1)[0].item()
             
-            # Get class mapping
-            phonemes = phoneme_pair.split('-')
-            predicted_phoneme = phonemes[predicted_class] if predicted_class < len(phonemes) else None
+            # Get correct class-to-phoneme mapping (using lexicographic order like LabelEncoder)
+            class_mapping = self._get_class_mapping(phoneme_pair)
+            predicted_phoneme = class_mapping.get(predicted_class, None)
             
-            # Check if correct
-            is_correct = (predicted_phoneme == expected_phoneme)
+            # Normalize phonemes for comparison (handle 'g' vs 'ɡ' and other variations)
+            def normalize_for_comparison(ph: str) -> str:
+                """Normalize phoneme for comparison, handling common variations."""
+                ph = ph.strip().lower()
+                # Map common variations
+                variations = {
+                    'g': 'ɡ',  # Latin g -> IPA ɡ
+                }
+                return variations.get(ph, ph)
+            
+            # Check if correct (with normalization)
+            expected_normalized = normalize_for_comparison(expected_phoneme) if expected_phoneme else None
+            predicted_normalized = normalize_for_comparison(predicted_phoneme) if predicted_phoneme else None
+            is_correct = (predicted_normalized == expected_normalized) if (predicted_normalized and expected_normalized) else None
             confidence = float(probabilities[predicted_class])
             
-            # Get probabilities for both classes
+            # Get probabilities for both classes using correct mapping
             prob_dict = {}
-            for i, phoneme in enumerate(phonemes):
-                if i < len(probabilities):
-                    prob_dict[phoneme] = float(probabilities[i])
+            for class_idx, phoneme in class_mapping.items():
+                if class_idx < len(probabilities):
+                    prob_dict[phoneme] = float(probabilities[class_idx])
             
             result = {
                 'expected_phoneme': expected_phoneme,
