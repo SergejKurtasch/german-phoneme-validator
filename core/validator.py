@@ -359,9 +359,19 @@ class PhonemeValidator:
                 if isinstance(val, np.ndarray):
                     # Flatten array features and create multiple keys
                     for i, v in enumerate(val.flatten()):
-                        flattened_features[f"{key}_{i}"] = float(v)
+                        # Only convert numeric values to float
+                        if isinstance(v, (int, float, np.number)):
+                            flattened_features[f"{key}_{i}"] = float(v)
+                        else:
+                            # Skip non-numeric values or convert to 0.0
+                            flattened_features[f"{key}_{i}"] = 0.0
                 else:
-                    flattened_features[key] = float(val)
+                    # Only convert numeric values to float
+                    if isinstance(val, (int, float, np.number)):
+                        flattened_features[key] = float(val)
+                    else:
+                        # Skip non-numeric values or convert to 0.0
+                        flattened_features[key] = 0.0
             
             # Now build features_vector from feature_cols
             features_vector = []
