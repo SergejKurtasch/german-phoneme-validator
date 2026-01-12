@@ -202,6 +202,14 @@ Use `validator.get_available_pairs()` to see available pairs in your installatio
    print("Installation successful!")
    ```
 
+4. **Automated environment preparation**:
+   ```bash
+   ./setup_env.sh
+   ```
+   This helper script creates a `.venv` virtual environment, upgrades `pip`, installs `setuptools<58` (required because `googleads==3.8.0`, a dependency of `parselmouth`, still uses the legacy `use_2to3` flag), and then installs everything from `requirements.txt`.
+
+   Optional dependencies (`parselmouth`, `webrtcvad`, `pandas`, `tqdm`, `torchaudio`) remain in `requirements.txt` for convenience, but you can omit them if you only need the core validator. Run `pip install -r requirements.txt` without the `setup_env.sh` helper if you prefer manual control.
+
 **Note**: The `artifacts/` directory with trained models is included in the repository. The module will automatically detect available phoneme pairs from the `artifacts/` directory. Currently, the repository includes trained models for 22 phoneme pairs.
 
 ## Documentation
