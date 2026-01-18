@@ -13,14 +13,45 @@ This module provides acoustic feature-based validation to confirm whether a Germ
 - Python 3.8 or higher
 - PyTorch 2.0+ (install via conda recommended for better compatibility)
 
-### Quick Install
+### Install from Local Directory (Development)
+
+If you have the source code locally:
 
 ```bash
-# Install package (recommended)
+cd german-phoneme-validator
 pip install -e .
+```
 
-# Or install dependencies only
-pip install -r requirements.txt
+This installs the package in editable mode, so changes to the source code are immediately available.
+
+### Install from GitHub
+
+Install directly from the GitHub repository:
+
+```bash
+pip install git+https://github.com/SergejKurtasch/german-phoneme-validator.git
+```
+
+### Install via pip (if published to PyPI)
+
+If the package is published to PyPI:
+
+```bash
+pip install german-phoneme-validator
+```
+
+### Install via conda (if available)
+
+If a conda package is available:
+
+```bash
+conda install -c conda-forge german-phoneme-validator
+```
+
+Or if using a custom channel:
+
+```bash
+conda install -c your-channel german-phoneme-validator
 ```
 
 **Note**: For best compatibility, install PyTorch via conda:
@@ -28,47 +59,30 @@ pip install -r requirements.txt
 conda install pytorch torchaudio -c pytorch
 ```
 
-For optional dependencies (advanced formant extraction):
+### Optional Dependencies
+
+For advanced formant extraction features:
+
 ```bash
 pip install -e ".[optional]"
 ```
 
+### Important Notes
+
+- **Artifacts included**: The `artifacts/` directory with trained models is automatically included in the package when installed via pip/conda. You don't need to specify `artifacts_dir` parameter when using the installed package - it will be auto-detected.
+
+- **Local development**: If installing from local directory, the artifacts will be found relative to the source code location.
+
+- **Dependencies only**: If you only want to install dependencies without the package itself:
+  ```bash
+  pip install -r requirements.txt
+  ```
+
 ## Quick Start
 
-**Simplest way - Copy project folder to your project directory:**
+**Recommended: Install as package (pip/conda)**
 
-Just copy the entire `pronouncise-german-phoneme-validator` folder to the same directory as your project, then import directly:
-
-```python
-# If both projects are in the same directory:
-# your_project/
-#   your_script.py
-#   pronouncise-german-phoneme-validator/
-#     __init__.py
-#     core/
-#     ...
-
-# In your_script.py:
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent / "pronouncise-german-phoneme-validator"))
-
-from __init__ import validate_phoneme
-import numpy as np
-
-audio_array = np.random.randn(3 * 16000).astype(np.float32)
-result = validate_phoneme(
-    audio=audio_array,
-    phoneme="/b/",
-    position_ms=1500.0,
-    expected_phoneme="/b/"
-)
-
-print(f"Correct: {result['is_correct']}")
-print(f"Confidence: {result['confidence']:.2%}")
-```
-
-**If installed as package:**
+After installing the package (see Installation section above), you can import and use it directly:
 ```python
 from german_phoneme_validator import validate_phoneme
 import numpy as np
@@ -87,18 +101,7 @@ print(f"Confidence: {result['confidence']:.2%}")
 print(f"Explanation: {result['explanation']}")
 ```
 
-**If running from project directory (without installation):**
-```python
-# Add project root to path
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent))
-
-# Import from local package
-from __init__ import validate_phoneme
-# or
-from core.validator import validate_phoneme
-```
+**Note**: When using the installed package, you don't need to specify `artifacts_dir` - it will be automatically detected from the package installation.
 
 ### Using WAV File
 
@@ -210,7 +213,7 @@ Use `validator.get_available_pairs()` to see available pairs in your installatio
 
    Optional dependencies (`parselmouth`, `webrtcvad`, `pandas`, `tqdm`, `torchaudio`) remain in `requirements.txt` for convenience, but you can omit them if you only need the core validator. Run `pip install -r requirements.txt` without the `setup_env.sh` helper if you prefer manual control.
 
-**Note**: The `artifacts/` directory with trained models is included in the repository. The module will automatically detect available phoneme pairs from the `artifacts/` directory. Currently, the repository includes trained models for 22 phoneme pairs.
+**Note**: The `artifacts/` directory with trained models is automatically included in the package when installed via pip/conda. The module will automatically detect available phoneme pairs from the `artifacts/` directory. Currently, the package includes trained models for 22 phoneme pairs. No need to manually specify `artifacts_dir` when using the installed package.
 
 ## Documentation
 

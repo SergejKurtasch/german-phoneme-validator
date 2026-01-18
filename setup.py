@@ -47,6 +47,11 @@ setup(
     # This allows: from german_phoneme_validator import ...
     package_dir={"german_phoneme_validator": "."},
     packages=["german_phoneme_validator", "german_phoneme_validator.core"],
+    # Include artifacts directory with trained models
+    package_data={
+        "german_phoneme_validator": ["artifacts/**/*"],
+    },
+    include_package_data=True,
     python_requires=">=3.8",
     install_requires=core_requirements,
     extras_require={

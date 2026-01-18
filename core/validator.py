@@ -12,7 +12,19 @@ import json
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any, Union
 import warnings
+import sys
 warnings.filterwarnings('ignore')
+
+# For finding artifacts in installed package
+try:
+    from importlib import resources
+    # Python 3.9+ uses files() API
+    if sys.version_info >= (3, 9):
+        _has_files_api = True
+    else:
+        _has_files_api = False
+except ImportError:
+    _has_files_api = False
 
 from .models import HybridCNNMLP_V4_3
 from .feature_extraction import (
@@ -63,14 +75,12 @@ class PhonemeValidator:
         
         Args:
             artifacts_dir: Path to artifacts directory. If None, uses default.
+            The default behavior:
+            1. If installed as package, looks for artifacts in the package
+            2. Otherwise, looks for artifacts relative to the source code
         """
         if artifacts_dir is None:
-            # Default: look for artifacts in parent directory or current directory
-            current_dir = Path(__file__).parent.parent
-            artifacts_dir = current_dir / 'artifacts'
-            if not artifacts_dir.exists():
-                # Try parent directory
-                artifacts_dir = current_dir.parent / 'artifacts'
+            artifacts_dir = self._find_artifacts_dir()
         
         self.artifacts_dir = Path(artifacts_dir)
         self.models_cache = {}
@@ -79,6 +89,54 @@ class PhonemeValidator:
         self.available_pairs = self._discover_phoneme_pairs()
         self.device = self._get_device()
         self.class_mapping = CLASS_MAPPING.copy()
+    
+    def _find_artifacts_dir(self) -> Path:
+        """
+        Find artifacts directory.
+        
+        Priority:
+        1. Try to find artifacts in installed package using importlib.resources
+        2. Fallback to relative paths for local development
+        """
+        # Try to find artifacts in installed package
+        try:
+            import german_phoneme_validator
+            if _has_files_api:
+                # Python 3.9+ - use files() API
+                try:
+                    artifacts_ref = resources.files('german_phoneme_validator') / 'artifacts'
+                    if artifacts_ref.is_dir():
+                        # Convert to Path object
+                        artifacts_path = Path(str(artifacts_ref))
+                        if artifacts_path.exists():
+                            return artifacts_path
+                except (ModuleNotFoundError, AttributeError, TypeError):
+                    pass
+            else:
+                # Python < 3.9 - use path() API
+                try:
+                    with resources.path('german_phoneme_validator', 'artifacts') as artifacts_path:
+                        artifacts_path_obj = Path(artifacts_path)
+                        if artifacts_path_obj.exists():
+                            return artifacts_path_obj
+                except (ModuleNotFoundError, FileNotFoundError):
+                    pass
+        except ImportError:
+            pass
+        
+        # Fallback: look for artifacts relative to source code (local development)
+        current_dir = Path(__file__).parent.parent
+        artifacts_dir = current_dir / 'artifacts'
+        if artifacts_dir.exists():
+            return artifacts_dir
+        
+        # Try parent directory
+        artifacts_dir = current_dir.parent / 'artifacts'
+        if artifacts_dir.exists():
+            return artifacts_dir
+        
+        # Return default path even if it doesn't exist (will be handled by _discover_phoneme_pairs)
+        return current_dir / 'artifacts'
     
     def _get_device(self) -> str:
         """Auto-detect device."""
