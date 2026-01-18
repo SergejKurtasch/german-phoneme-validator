@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any, Union
 import warnings
 import sys
+import threading
 warnings.filterwarnings('ignore')
 
 # For finding artifacts in installed package
@@ -160,6 +161,23 @@ class PhonemeValidator:
                     pairs.append(pair_name)
         return sorted(pairs)
     
+    def _normalize_feature_vector(self, vector: np.ndarray, expected_size: int) -> np.ndarray:
+        """
+        Normalize feature vector to expected size (trim or pad as needed).
+        
+        Args:
+            vector: Feature vector as numpy array
+            expected_size: Expected size of the vector
+            
+        Returns:
+            Normalized feature vector with exactly expected_size elements
+        """
+        if len(vector) > expected_size:
+            return vector[:expected_size]
+        elif len(vector) < expected_size:
+            return np.pad(vector, (0, expected_size - len(vector)), 'constant')
+        return vector
+    
     def get_phoneme_pair(self, phoneme1: str, phoneme2: str) -> Optional[str]:
         """
         Determine phoneme pair from two phonemes.
@@ -269,8 +287,19 @@ class PhonemeValidator:
             self.models_cache[phoneme_pair] = result
             return result
             
+        except (FileNotFoundError, IOError) as e:
+            print(f"File not found error loading model for {phoneme_pair}: {e}")
+            return None
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"Error parsing config/data for {phoneme_pair}: {e}")
+            return None
+        except (RuntimeError, ValueError) as e:
+            print(f"Error loading model state for {phoneme_pair}: {e}")
+            return None
         except Exception as e:
-            print(f"Error loading model for {phoneme_pair}: {e}")
+            import traceback
+            print(f"Unexpected error loading model for {phoneme_pair}: {e}")
+            print(traceback.format_exc())
             return None
     
     def _get_class_mapping(self, phoneme_pair: str) -> Dict[int, str]:
@@ -451,20 +480,13 @@ class PhonemeValidator:
             if scaler is not None:
                 # Ensure features_vector matches scaler's expected input size
                 if hasattr(scaler, 'n_features_in_'):
-                    if len(features_vector) != scaler.n_features_in_:
-                        if len(features_vector) > scaler.n_features_in_:
-                            features_vector = features_vector[:scaler.n_features_in_]
-                        else:
-                            features_vector = np.pad(features_vector, (0, scaler.n_features_in_ - len(features_vector)), 'constant')
+                    features_vector = self._normalize_feature_vector(features_vector, scaler.n_features_in_)
                 
                 features_vector = scaler.transform([features_vector])[0]
                 
                 # Ensure features_vector matches model's n_features
                 if hasattr(model, 'n_features'):
-                    if len(features_vector) > model.n_features:
-                        features_vector = features_vector[:model.n_features]
-                    elif len(features_vector) < model.n_features:
-                        features_vector = np.pad(features_vector, (0, model.n_features - len(features_vector)), 'constant')
+                    features_vector = self._normalize_feature_vector(features_vector, model.n_features)
                 
                 features_vector = features_vector.astype(np.float32)
             
@@ -517,6 +539,18 @@ class PhonemeValidator:
             
             return result
             
+        except (ValueError, RuntimeError) as e:
+            # Shape mismatches, tensor errors, etc.
+            return {
+                'expected_phoneme': expected_phoneme,
+                'recognized_phoneme': suspected_phoneme,
+                'is_correct': None,
+                'confidence': 0.0,
+                'predicted_phoneme': None,
+                'probabilities': {},
+                'features': {},
+                'error': f'Model inference error: {str(e)}'
+            }
         except Exception as e:
             import traceback
             return {
@@ -527,7 +561,8 @@ class PhonemeValidator:
                 'predicted_phoneme': None,
                 'probabilities': {},
                 'features': {},
-                'error': str(e)
+                'error': f'Unexpected error: {str(e)}',
+                'traceback': traceback.format_exc()
             }
     
     def get_available_pairs(self) -> List[str]:
@@ -768,6 +803,22 @@ class PhonemeValidator:
             
             return result
             
+        except (FileNotFoundError, IOError) as e:
+            return {
+                'is_correct': None,
+                'confidence': 0.0,
+                'features': {},
+                'explanation': f'File error: {str(e)}',
+                'error': str(e)
+            }
+        except ValueError as e:
+            return {
+                'is_correct': None,
+                'confidence': 0.0,
+                'features': {},
+                'explanation': f'Invalid input: {str(e)}',
+                'error': str(e)
+            }
         except Exception as e:
             import traceback
             return {
@@ -780,16 +831,15 @@ class PhonemeValidator:
             }
 
 
-# Global instance
-_validator = None
+# Thread-local storage for validator instances (thread-safe)
+_validator_storage = threading.local()
 
 
 def get_validator(artifacts_dir: Optional[Path] = None) -> PhonemeValidator:
-    """Get or create global validator instance."""
-    global _validator
-    if _validator is None:
-        _validator = PhonemeValidator(artifacts_dir=artifacts_dir)
-    return _validator
+    """Get or create thread-local validator instance (thread-safe)."""
+    if not hasattr(_validator_storage, 'validator') or _validator_storage.validator is None:
+        _validator_storage.validator = PhonemeValidator(artifacts_dir=artifacts_dir)
+    return _validator_storage.validator
 
 
 def validate_phoneme(

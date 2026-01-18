@@ -8,7 +8,6 @@ import numpy as np
 import librosa
 from scipy import signal
 import warnings
-warnings.filterwarnings('ignore')
 
 # Try to import optional libraries
 try:
@@ -33,12 +32,55 @@ HOP_LENGTH = 512
 MFCC_N_COEFFS = 13
 SPECTROGRAM_WINDOW_MS = 200  # For spectrograms (will be longer with context)
 
+# Pre-emphasis filter coefficient for formant extraction
+PRE_EMPHASIS_COEFF = 0.97
+
+# Formant extraction parameters
+FORMANTS_MIN_FREQ_HZ = 50  # Minimum frequency for formant detection (Hz)
+FORMANTS_MAGNITUDE_THRESHOLD = 0.7  # Minimum magnitude threshold for formant filtering
+
+# Burst detection frequency range (Hz)
+BURST_DETECTION_LOW_FREQ_HZ = 2000  # Low frequency for burst detection
+BURST_DETECTION_HIGH_FREQ_HZ = 8000  # High frequency for burst detection
+
+# Voicing detection frequency range (Hz)
+VOICING_DETECTION_LOW_FREQ_HZ = 50  # Low frequency for voicing detection
+VOICING_DETECTION_HIGH_FREQ_HZ = 500  # High frequency for voicing detection
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+def _normalize_filter_frequencies(low_freq_hz, high_freq_hz, nyquist):
+    """
+    Normalize filter frequencies to [0, 1] range and ensure they're within valid bounds.
+    
+    Args:
+        low_freq_hz: Low frequency in Hz
+        high_freq_hz: High frequency in Hz
+        nyquist: Nyquist frequency (sr / 2)
+        
+    Returns:
+        Tuple of (normalized_low_freq, normalized_high_freq) in [0.01, 0.99] range
+    """
+    low_freq = low_freq_hz / nyquist
+    high_freq = high_freq_hz / nyquist
+    low_freq = max(0.01, min(low_freq, 0.99))
+    high_freq = max(0.01, min(high_freq, 0.99))
+    return low_freq, high_freq
+
 # ============================================================================
 # FEATURE EXTRACTION FUNCTIONS
 # ============================================================================
 
 def extract_mfcc_features(audio, sr=SAMPLE_RATE, n_mfcc=MFCC_N_COEFFS, hop_length=HOP_LENGTH):
     """Extract MFCC features and their deltas."""
+    # Input validation
+    if audio is None or len(audio) == 0:
+        raise ValueError("Audio input cannot be empty")
+    if sr <= 0:
+        raise ValueError(f"Sample rate must be positive, got {sr}")
+    
     mfcc = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=n_mfcc, hop_length=hop_length)
     
     # Handle short audio files: adjust delta width based on available frames
@@ -102,7 +144,7 @@ def extract_spectral_features(audio, sr=SAMPLE_RATE, hop_length=HOP_LENGTH):
 def extract_formants_lpc(audio, sr=SAMPLE_RATE, n_formants=4, order=10):
     """Extract formants using LPC (Linear Predictive Coding)."""
     # Pre-emphasis filter
-    audio_pre = signal.lfilter([1, -0.97], 1, audio)
+    audio_pre = signal.lfilter([1, -PRE_EMPHASIS_COEFF], 1, audio)
     
     # Frame the signal
     frame_length = int(0.025 * sr)  # 25ms frames
@@ -137,7 +179,8 @@ def extract_formants_lpc(audio, sr=SAMPLE_RATE, n_formants=4, order=10):
             magnitudes = np.abs(roots)
             
             # Filter: formants should have high magnitude and be in valid frequency range
-            freq_mag_pairs = [(f, m) for f, m in zip(freqs, magnitudes) if 50 < f < sr/2 and m > 0.7]
+            freq_mag_pairs = [(f, m) for f, m in zip(freqs, magnitudes) 
+                              if FORMANTS_MIN_FREQ_HZ < f < sr/2 and m > FORMANTS_MAGNITUDE_THRESHOLD]
             freq_mag_pairs.sort(key=lambda x: x[1], reverse=True)
             freqs = [f for f, m in freq_mag_pairs]
             
@@ -249,10 +292,9 @@ def detect_burst(audio, sr=SAMPLE_RATE):
     try:
         # High-frequency filtering for burst detection (2-8 kHz)
         nyquist = sr / 2
-        low_freq = 2000 / nyquist
-        high_freq = 8000 / nyquist
-        low_freq = max(0.01, min(low_freq, 0.99))
-        high_freq = max(0.01, min(high_freq, 0.99))
+        low_freq, high_freq = _normalize_filter_frequencies(
+            BURST_DETECTION_LOW_FREQ_HZ, BURST_DETECTION_HIGH_FREQ_HZ, nyquist
+        )
         
         b, a = signal.butter(4, [low_freq, high_freq], btype='band')
         audio_hf = signal.filtfilt(b, a, audio)
@@ -294,6 +336,42 @@ def detect_burst(audio, sr=SAMPLE_RATE):
     except Exception as e:
         return 0.0, 0.0
 
+def _detect_periodicity_peaks(audio_segment, sr=SAMPLE_RATE):
+    """
+    Detect periodicity peaks in audio segment using autocorrelation.
+    
+    Args:
+        audio_segment: Audio segment to analyze
+        sr: Sample rate
+        
+    Returns:
+        List of (peak_value, peak_index) tuples
+    """
+    frame_length = int(0.025 * sr)  # 25ms frames
+    hop_length = int(0.01 * sr)     # 10ms hop
+    
+    autocorr_peaks = []
+    for i in range(0, len(audio_segment) - frame_length, hop_length):
+        frame = audio_segment[i:i+frame_length]
+        frame = frame * signal.windows.hann(len(frame))
+        
+        # Autocorrelation
+        autocorr = np.correlate(frame, frame, mode='full')
+        autocorr = autocorr[len(autocorr)//2:]
+        
+        # Find first significant peak (periodicity)
+        min_period = int(2 / 1000 * sr)  # 2ms
+        max_period = int(20 / 1000 * sr)  # 20ms
+        
+        if len(autocorr) > max_period:
+            search_range = autocorr[min_period:max_period]
+            if len(search_range) > 0:
+                peak_val = np.max(search_range)
+                peak_idx = np.argmax(search_range) + min_period
+                autocorr_peaks.append((peak_val, peak_idx))
+    
+    return autocorr_peaks
+
 def detect_voicing_onset(audio, sr=SAMPLE_RATE, burst_time_ms=None):
     """
     Detect the onset of voicing through low-frequency energy and autocorrelation.
@@ -305,10 +383,9 @@ def detect_voicing_onset(audio, sr=SAMPLE_RATE, burst_time_ms=None):
     try:
         # Low-frequency filtering for voicing (50-500 Hz)
         nyquist = sr / 2
-        low_freq = 50 / nyquist
-        high_freq = 500 / nyquist
-        low_freq = max(0.01, min(low_freq, 0.99))
-        high_freq = max(0.01, min(high_freq, 0.99))
+        low_freq, high_freq = _normalize_filter_frequencies(
+            VOICING_DETECTION_LOW_FREQ_HZ, VOICING_DETECTION_HIGH_FREQ_HZ, nyquist
+        )
         
         b, a = signal.butter(4, [low_freq, high_freq], btype='band')
         audio_lf = signal.filtfilt(b, a, audio)
@@ -326,28 +403,7 @@ def detect_voicing_onset(audio, sr=SAMPLE_RATE, burst_time_ms=None):
             return float(len(audio) / sr * 1000), 0.0
         
         # Frame-based autocorrelation for periodicity detection
-        frame_length = int(0.025 * sr)  # 25ms frames
-        hop_length = int(0.01 * sr)     # 10ms hop
-        
-        autocorr_peaks = []
-        for i in range(0, len(search_audio) - frame_length, hop_length):
-            frame = search_audio[i:i+frame_length]
-            frame = frame * signal.windows.hann(len(frame))
-            
-            # Autocorrelation
-            autocorr = np.correlate(frame, frame, mode='full')
-            autocorr = autocorr[len(autocorr)//2:]
-            
-            # Find first significant peak (periodicity)
-            min_period = int(2 / 1000 * sr)  # 2ms
-            max_period = int(20 / 1000 * sr)  # 20ms
-            
-            if len(autocorr) > max_period:
-                search_range = autocorr[min_period:max_period]
-                if len(search_range) > 0:
-                    peak_val = np.max(search_range)
-                    peak_idx = np.argmax(search_range) + min_period
-                    autocorr_peaks.append((peak_val, peak_idx))
+        autocorr_peaks = _detect_periodicity_peaks(search_audio, sr)
         
         if len(autocorr_peaks) == 0:
             return float(len(audio) / sr * 1000), 0.0
@@ -492,10 +548,9 @@ def extract_low_frequency_energy(audio, sr=SAMPLE_RATE, hop_length=HOP_LENGTH):
     try:
         # Low-frequency filtering (50-500 Hz)
         nyquist = sr / 2
-        low_freq = 50 / nyquist
-        high_freq = 500 / nyquist
-        low_freq = max(0.01, min(low_freq, 0.99))
-        high_freq = max(0.01, min(high_freq, 0.99))
+        low_freq, high_freq = _normalize_filter_frequencies(
+            VOICING_DETECTION_LOW_FREQ_HZ, VOICING_DETECTION_HIGH_FREQ_HZ, nyquist
+        )
         
         b, a = signal.butter(4, [low_freq, high_freq], btype='band')
         audio_lf = signal.filtfilt(b, a, audio)
@@ -632,6 +687,36 @@ def apply_vad(audio, sr=SAMPLE_RATE, hop_length=HOP_LENGTH):
             vad_total_frames=0
         )
 
+def _prepare_audio_input(audio_input, sr=SAMPLE_RATE):
+    """
+    Prepare audio input from file path or numpy array.
+    
+    Args:
+        audio_input: Path to audio file (str/Path) or numpy array of audio samples
+        sr: Sample rate
+        
+    Returns:
+        Tuple of (audio_array, actual_sample_rate)
+    """
+    if isinstance(audio_input, (str, Path)):
+        audio, _ = librosa.load(audio_input, sr=sr, mono=True)
+    elif isinstance(audio_input, np.ndarray):
+        audio = audio_input
+        # Ensure correct sample rate (resample if needed)
+        if sr != SAMPLE_RATE:
+            audio = librosa.resample(audio, orig_sr=sr, target_sr=SAMPLE_RATE)
+            sr = SAMPLE_RATE
+    else:
+        raise ValueError(f"Unsupported audio_input type: {type(audio_input)}")
+    
+    # Validate audio array
+    if audio is None or len(audio) == 0:
+        raise ValueError("Audio input cannot be empty after loading")
+    if sr <= 0:
+        raise ValueError(f"Sample rate must be positive, got {sr}")
+    
+    return audio, sr
+
 def extract_all_features(audio_input, sr=SAMPLE_RATE, phoneme_type='b-p', hop_length=HOP_LENGTH):
     """
     Extract all features from an audio file or numpy array.
@@ -646,17 +731,8 @@ def extract_all_features(audio_input, sr=SAMPLE_RATE, phoneme_type='b-p', hop_le
         Dictionary of features or None if error
     """
     try:
-        # Support both file path and numpy array
-        if isinstance(audio_input, (str, Path)):
-            audio, _ = librosa.load(audio_input, sr=sr, mono=True)
-        elif isinstance(audio_input, np.ndarray):
-            audio = audio_input
-            # Ensure correct sample rate (resample if needed)
-            if sr != SAMPLE_RATE:
-                audio = librosa.resample(audio, orig_sr=sr, target_sr=SAMPLE_RATE)
-                sr = SAMPLE_RATE
-        else:
-            raise ValueError(f"Unsupported audio_input type: {type(audio_input)}")
+        # Prepare audio input (load and validate)
+        audio, sr = _prepare_audio_input(audio_input, sr)
         
         features = {}
         features.update(extract_mfcc_features(audio, sr, hop_length=hop_length))
@@ -710,17 +786,8 @@ def extract_spectrogram_window(audio_input, target_duration_ms=SPECTROGRAM_WINDO
         Mel-spectrogram in dB or None if error
     """
     try:
-        # Support both file path and numpy array
-        if isinstance(audio_input, (str, Path)):
-            audio, _ = librosa.load(audio_input, sr=sr, mono=True)
-        elif isinstance(audio_input, np.ndarray):
-            audio = audio_input
-            # Ensure correct sample rate (resample if needed)
-            if sr != SAMPLE_RATE:
-                audio = librosa.resample(audio, orig_sr=sr, target_sr=SAMPLE_RATE)
-                sr = SAMPLE_RATE
-        else:
-            raise ValueError(f"Unsupported audio_input type: {type(audio_input)}")
+        # Prepare audio input (load and validate)
+        audio, sr = _prepare_audio_input(audio_input, sr)
         
         audio_duration_ms = len(audio) / sr * 1000
         

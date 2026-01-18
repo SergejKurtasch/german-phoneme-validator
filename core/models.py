@@ -258,10 +258,14 @@ class HybridCNNMLP_V4_3(nn.Module):
         spectrogram, features = x
         
         # Input validation
-        assert len(spectrogram.shape) == 4, f"Expected 4D spectrogram, got {len(spectrogram.shape)}D"
-        assert spectrogram.shape[1] == 1, f"Expected 1 channel, got {spectrogram.shape[1]}"
-        assert len(features.shape) == 2, f"Expected 2D features, got {len(features.shape)}D"
-        assert features.shape[1] == self.n_features, f"Expected {self.n_features} features, got {features.shape[1]}"
+        if len(spectrogram.shape) != 4:
+            raise ValueError(f"Expected 4D spectrogram, got {len(spectrogram.shape)}D")
+        if spectrogram.shape[1] != 1:
+            raise ValueError(f"Expected 1 channel, got {spectrogram.shape[1]}")
+        if len(features.shape) != 2:
+            raise ValueError(f"Expected 2D features, got {len(features.shape)}D")
+        if features.shape[1] != self.n_features:
+            raise ValueError(f"Expected {self.n_features} features, got {features.shape[1]}")
         
         # CNN branch with multi-scale
         cnn_init = self.cnn_initial(spectrogram)

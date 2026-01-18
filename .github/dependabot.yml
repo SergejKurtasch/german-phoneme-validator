@@ -1,0 +1,34 @@
+version: 2
+updates:
+  # Enable version updates for pip (Python dependencies)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"  # Check for updates weekly
+      day: "monday"       # On Mondays
+      time: "09:00"       # At 9:00 AM UTC
+    open-pull-requests-limit: 5  # Maximum number of open PRs
+    reviewers:
+      - "SergejKurtasch"  # GitHub username for review
+    labels:
+      - "dependencies"
+      - "python"
+      - "automated"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    # Group updates for better PR management
+    groups:
+      python-dependencies:
+        patterns:
+          - "torch*"
+          - "numpy*"
+          - "scipy*"
+          - "scikit-learn*"
+          - "librosa*"
+    # Ignore major version updates for critical dependencies
+    ignore:
+      - dependency-name: "torch"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "numpy"
+        update-types: ["version-update:semver-major"]
