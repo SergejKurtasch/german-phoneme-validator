@@ -15,7 +15,7 @@ from .core.feature_extraction import (
     N_MELS
 )
 
-__version__ = "1.0.1"
+__version__ = "1.1.0"
 __all__ = [
     'validate_phoneme',
     'PhonemeValidator',
