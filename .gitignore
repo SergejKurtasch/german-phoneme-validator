@@ -29,6 +29,7 @@ ENV/
 .venv
 temp/
 .env
+build_env/
 
 # IDE
 .vscode/
