@@ -13,14 +13,12 @@ german-phoneme-validator/
 │   ├── models.py                 # Model architectures (HybridCNNMLP_V4_3)
 │   ├── feature_extraction.py     # Feature extraction functions
 │   └── validator.py              # Main validation logic
-├── artifacts/                     # Trained models (included in repository)
-│   └── [phoneme_pair]_dl_models_with_context_v2/
-│       ├── improved_models/
-│       │   └── hybrid_cnn_mlp_v4_3_enhanced/
-│       │       ├── best_model.pt
-│       │       └── config.json
-│       ├── feature_scaler.joblib
-│       └── feature_cols.json
+├── tools/                         # Utility scripts
+│   ├── __init__.py
+│   └── upload_models.py          # Script to upload models to Hugging Face Hub
+├── core/
+│   ├── downloader.py             # Model download from Hugging Face Hub
+│   ├── ...
 ├── notebooks/                     # Development notebooks (for reference)
 ├── __init__.py                    # Main package exports
 ├── example_usage.py              # Usage examples
@@ -55,7 +53,14 @@ german-phoneme-validator/
 - Contains the `PhonemeValidator` class
 - Implements `validate_phoneme()` function according to Research Brief spec
 - Handles model loading, feature extraction, and validation
+- Supports both local artifacts and Hugging Face Hub downloads
 - Extracted and adapted from `gradio_modules/phoneme_validator.py`
+
+### core/downloader.py
+- Handles model downloads from Hugging Face Hub
+- Implements `get_model_assets()` function for on-demand model loading
+- Uses ETag-based caching to check for updates without re-downloading
+- Automatically caches models in `~/.cache/huggingface/hub/`
 
 ### __init__.py
 - Main package entry point
@@ -67,8 +72,10 @@ german-phoneme-validator/
 1. **Standalone Module**: All dependencies are self-contained
 2. **Production Ready**: Error handling, input validation, and clear API
 3. **Flexible Input**: Supports WAV files or numpy arrays
-4. **Model Caching**: Models are loaded lazily and cached in memory
-5. **Comprehensive Features**: Extracts MFCC, formants, spectral features, VOT, etc.
+4. **Automatic Model Download**: Models are downloaded from Hugging Face Hub on first use
+5. **Model Caching**: Models are loaded lazily, cached in memory, and stored locally
+6. **Update Checking**: Automatically checks for model updates via ETag without full re-download
+7. **Comprehensive Features**: Extracts MFCC, formants, spectral features, VOT, etc.
 
 ## Usage
 
@@ -97,4 +104,5 @@ from core.validator import validate_phoneme
 2. Install package: `pip install -e .` or dependencies: `pip install -r requirements.txt`
 3. Test with `python example_usage.py`
 
-**Note**: The `artifacts/` directory with trained models is already included in the repository. No additional setup is required.
+**Note**: Models are automatically downloaded from Hugging Face Hub on first use. 
+If you have a local `artifacts/` directory (for development), it will be used instead of downloading from Hugging Face Hub.

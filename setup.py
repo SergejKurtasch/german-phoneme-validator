@@ -76,12 +76,13 @@ version = get_version()
 package_dir = {"german_phoneme_validator": "."}
 packages = ["german_phoneme_validator", "german_phoneme_validator.core"]
 
-# Include artifacts directory with trained models
+# Note: artifacts/ directory is NOT included in PyPI package.
+# Models are automatically downloaded from Hugging Face Hub on first use.
+# See core/downloader.py for details.
 package_data = {
     "german_phoneme_validator": [
-        "artifacts/**/*",
-        "artifacts/*",
-        "core/*.py",
+        # artifacts excluded - downloaded automatically from Hugging Face Hub
+        # core/*.py is automatically included via packages directive
     ],
 }
 

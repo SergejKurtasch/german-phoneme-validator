@@ -105,8 +105,8 @@ def example_3_validator_class():
     print()
     
     if len(available_pairs) == 0:
-        print("No trained models found. Please ensure the artifacts/ directory is present in the project root.")
-        print("The artifacts/ directory should be included when cloning the repository.")
+        print("No trained models found. Models will be downloaded from Hugging Face Hub on first use.")
+        print("If you have a local artifacts/ directory, it will be used instead.")
         print()
         return
     

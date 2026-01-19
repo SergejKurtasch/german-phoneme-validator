@@ -21,28 +21,26 @@
    print("Installation successful!")
    ```
 
-**Note**: The `artifacts/` directory with trained models is already included in the repository. No additional setup is required.
+**Note**: Model artifacts are automatically downloaded from Hugging Face Hub on first use. 
+No manual setup is required. An internet connection is needed for the first run to download the models.
 
-The artifacts directory contains subdirectories for each phoneme pair, for example:
-   ```
-   artifacts/
-   ├── b-p_dl_models_with_context_v2/
-   │   ├── improved_models/
-   │   │   └── hybrid_cnn_mlp_v4_3_enhanced/
-   │   │       ├── best_model.pt
-   │   │       └── config.json
-   │   ├── feature_scaler.joblib
-   │   └── feature_cols.json
-   ├── d-t_dl_models_with_context_v2/
-   │   └── ...
-   └── ...
-   ```
+Models are cached locally in `~/.cache/huggingface/hub/` after the first download. 
+Subsequent runs will check for updates automatically but won't re-download unchanged files.
 
-3. **Verify installation**:
-   ```python
-   from validate_phoneme import validate_phoneme
-   print("Installation successful!")
+The model structure (downloaded from Hugging Face Hub) contains subdirectories for each phoneme pair 
+(with normalized names, avoiding special IPA characters), for example:
    ```
+   {phoneme_pair}_model/
+   ├── best_model.pt
+   ├── config.json              # Contains original phoneme_pair and class_mapping
+   ├── feature_scaler.joblib
+   └── feature_cols.json
+   ```
+   
+Note: Folder names use normalized phoneme representations (e.g., 'schwa-E_model' for 'ə-ɛ', 
+'aaa-a_model' for 'aː-a') to avoid special characters in filesystem paths. All model files 
+are stored directly in the model folder root.
+
 
 ## Testing
 
@@ -61,10 +59,8 @@ german-phoneme-validator/
 │   ├── models.py
 │   ├── feature_extraction.py
 │   └── validator.py
-├── artifacts/              # Trained models (included in repository)
-│   ├── b-p_dl_models_with_context_v2/
-│   ├── d-t_dl_models_with_context_v2/
-│   └── ...
+├── tools/                  # Upload scripts (for maintainers)
+│   └── upload_models.py    # Script to upload models to Hugging Face Hub
 ├── __init__.py
 ├── validate_phoneme.py
 ├── requirements.txt
@@ -76,9 +72,17 @@ german-phoneme-validator/
 
 ## Notes
 
-- The `artifacts/` directory contains trained models and is included in the repository
+- Models are automatically downloaded from Hugging Face Hub on first use
 - Models are loaded lazily (on first use) and cached in memory
-- The module automatically detects available phoneme pairs from the artifacts directory
-- Currently, the repository includes trained models for 22 phoneme pairs
-- If no models are found, the validator will still work but will return errors when trying to validate phonemes
+- The module automatically detects available phoneme pairs
+- Currently, the repository provides trained models for 22 phoneme pairs
+- Models are cached in `~/.cache/huggingface/hub/` after first download
+- Updates are checked automatically via ETag without re-downloading unchanged files
+- For offline use, ensure models are downloaded first or use `local_files_only=True` (advanced)
+
+## Local Development
+
+If you're developing locally and have a local `artifacts/` directory, the validator will 
+use it instead of downloading from Hugging Face Hub. This allows for local testing without 
+requiring internet access.
 

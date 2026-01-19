@@ -69,9 +69,9 @@ pip install -e ".[optional]"
 
 ### Important Notes
 
-- **Artifacts included**: The `artifacts/` directory with trained models is automatically included in the package when installed via pip/conda. You don't need to specify `artifacts_dir` parameter when using the installed package - it will be auto-detected.
+- **Model Download**: Trained models are automatically downloaded from [Hugging Face Hub](https://huggingface.co/SergejKurtasch/german-phoneme-models) on first use. An internet connection is required for the initial download. Models are cached locally for subsequent use.
 
-- **Local development**: If installing from local directory, the artifacts will be found relative to the source code location.
+- **Local development**: If you have a local `artifacts/` directory, it will be used instead of downloading from Hugging Face Hub. This allows for offline development and testing.
 
 - **Dependencies only**: If you only want to install dependencies without the package itself:
   ```bash
@@ -101,7 +101,7 @@ print(f"Confidence: {result['confidence']:.2%}")
 print(f"Explanation: {result['explanation']}")
 ```
 
-**Note**: When using the installed package, you don't need to specify `artifacts_dir` - it will be automatically detected from the package installation.
+**Note**: Models are automatically downloaded from Hugging Face Hub on first use. You don't need to specify `artifacts_dir` unless you have local models for development.
 
 ### Using WAV File
 
@@ -213,7 +213,7 @@ Use `validator.get_available_pairs()` to see available pairs in your installatio
 
    Optional dependencies (`parselmouth`, `webrtcvad`, `pandas`, `tqdm`, `torchaudio`) remain in `requirements.txt` for convenience, but you can omit them if you only need the core validator. Run `pip install -r requirements.txt` without the `setup_env.sh` helper if you prefer manual control.
 
-**Note**: The `artifacts/` directory with trained models is automatically included in the package when installed via pip/conda. The module will automatically detect available phoneme pairs from the `artifacts/` directory. Currently, the package includes trained models for 22 phoneme pairs. No need to manually specify `artifacts_dir` when using the installed package.
+**Note**: Models are automatically downloaded from Hugging Face Hub on first use. The module will automatically detect available phoneme pairs. Currently, 22 phoneme pairs are supported. Models are cached locally after first download, so subsequent runs don't require internet access (unless checking for updates).
 
 ## Documentation
 
@@ -221,6 +221,7 @@ Use `validator.get_available_pairs()` to see available pairs in your installatio
 - **PROJECT_STRUCTURE.md** - Project structure and components
 - **TECHNICAL_REPORT.md** - Technical documentation and methodology
 - **example_usage.py** - Complete usage examples
+- **INSTRUCTIONS_HF_UPLOAD.md** - Instructions for uploading models to Hugging Face Hub (for maintainers)
 
 ## Error Handling
 

@@ -1,5 +1,9 @@
 """
 Phoneme validation module using trained models.
+
+Models are automatically downloaded from Hugging Face Hub on first use.
+See core/downloader.py for download implementation details.
+
 Adapted from gradio_modules/phoneme_validator.py for standalone use.
 """
 
@@ -14,6 +18,11 @@ from typing import Dict, List, Optional, Tuple, Any, Union
 import warnings
 import sys
 import threading
+import urllib.request
+import urllib.error
+import tarfile
+import shutil
+import os
 warnings.filterwarnings('ignore')
 
 # For finding artifacts in installed package
@@ -66,6 +75,90 @@ CLASS_MAPPING = {
     'ʁ-ɐ': {0: 'ɐ', 1: 'ʁ'},  # Lexicographic: 'ɐ' < 'ʁ'
 }
 
+# Mapping for converting original phoneme pair name to normalized folder name
+# Used for finding model folders after renaming
+PHONEME_NORMALIZATION = {
+    ':': 'aa',      # long vowel
+    'ɪ̯': 'Ij',      # non-syllabic i
+    'ʊ': 'U',       # near-close back vowel
+    'ɐ': 'A',       # near-open central vowel
+    'ʁ': 'R',       # voiced uvular fricative
+    'ŋ': 'N',       # velar nasal
+    'ə': 'schwa',   # schwa
+    'ɛ': 'E',       # open-mid front vowel
+    'ɔ': 'O',       # open-mid back vowel
+    'ç': 'C',       # voiceless palatal fricative
+    'ʃ': 'S',       # voiceless postalveolar fricative
+    'ʰ': 'h',       # aspiration
+    'a': 'a',
+    'b': 'b',
+    'd': 'd',
+    'e': 'e',
+    'g': 'g',
+    'i': 'i',
+    'k': 'k',
+    'n': 'n',
+    'o': 'o',
+    'p': 'p',
+    's': 's',
+    't': 't',
+    'u': 'u',
+    'x': 'x',
+    'z': 'z',
+    'ɪ': 'I',
+    'ː': 'aa',      # long vowel (additional replacement)
+    '̯': '',         # non-syllabic marker - remove
+}
+
+
+def _normalize_phoneme_for_folder(phoneme: str) -> str:
+    """
+    Normalizes phoneme for use in folder name.
+    Replaces IPA special characters with plain text without special characters.
+    """
+    result = []
+    i = 0
+    while i < len(phoneme):
+        # Check multi-character sequences first
+        found = False
+        for multi_char in ['aɪ̯', 'aʊ̯', 'kʰ', 'tʰ', 'aː', 'eː', 'iː', 'oː', 'uː']:
+            if phoneme[i:].startswith(multi_char):
+                # Normalize each character
+                for char in multi_char:
+                    replacement = PHONEME_NORMALIZATION.get(char, char)
+                    if replacement:  # Skip empty replacements (removed characters)
+                        result.append(replacement)
+                i += len(multi_char)
+                found = True
+                break
+        
+        if not found:
+            char = phoneme[i]
+            replacement = PHONEME_NORMALIZATION.get(char, char)
+            if replacement:  # Skip empty replacements
+                result.append(replacement)
+            i += 1
+    
+    return ''.join(result)
+
+
+def _phoneme_pair_to_folder_name(pair_name: str) -> str:
+    """
+    Converts original phoneme pair name to normalized folder name.
+    
+    Args:
+        pair_name: Original pair name (e.g., 'x-k', 'aː-a')
+        
+    Returns:
+        Normalized folder name (e.g., 'x-k_model', 'aaa-a_model')
+    """
+    parts = pair_name.split('-')
+    if len(parts) != 2:
+        return f"{pair_name}_model"
+    
+    normalized_parts = [_normalize_phoneme_for_folder(part) for part in parts]
+    return f"{'-'.join(normalized_parts)}_model"
+
 
 class PhonemeValidator:
     """Validator for phoneme pairs using trained models."""
@@ -75,15 +168,22 @@ class PhonemeValidator:
         Initialize phoneme validator.
         
         Args:
-            artifacts_dir: Path to artifacts directory. If None, uses default.
-            The default behavior:
-            1. If installed as package, looks for artifacts in the package
-            2. Otherwise, looks for artifacts relative to the source code
+            artifacts_dir: Path to artifacts directory. If None, uses default behavior:
+            1. Tries to find local artifacts directory (for development)
+            2. If not found, models are downloaded from Hugging Face Hub on-demand
+               when _load_model() is called
         """
         if artifacts_dir is None:
             artifacts_dir = self._find_artifacts_dir()
         
-        self.artifacts_dir = Path(artifacts_dir)
+        # artifacts_dir may not exist - models will be downloaded from HF Hub on-demand
+        # If artifacts_dir was found (even if path doesn't exist), use it; otherwise None
+        if artifacts_dir is not None:
+            artifacts_dir_path = Path(artifacts_dir)
+            # Only set if the path exists, otherwise set to None for HF Hub fallback
+            self.artifacts_dir = artifacts_dir_path if artifacts_dir_path.exists() else None
+        else:
+            self.artifacts_dir = None
         self.models_cache = {}
         self.scalers_cache = {}
         self.feature_cols_cache = {}
@@ -98,6 +198,11 @@ class PhonemeValidator:
         Priority:
         1. Try to find artifacts in installed package using importlib.resources
         2. Fallback to relative paths for local development
+        3. Try cache directory with downloaded artifacts (legacy GitHub Releases)
+        
+        Note: If no local artifacts directory is found, models will be downloaded
+        from Hugging Face Hub on-demand in _load_model() via get_model_assets().
+        This method is kept for backwards compatibility and local development.
         """
         # Try to find artifacts in installed package
         try:
@@ -136,8 +241,117 @@ class PhonemeValidator:
         if artifacts_dir.exists():
             return artifacts_dir
         
-        # Return default path even if it doesn't exist (will be handled by _discover_phoneme_pairs)
+        # If artifacts not found, try cache directory with downloaded artifacts
+        cache_dir = self._get_cache_dir()
+        cache_artifacts_dir = cache_dir / 'artifacts'
+        
+        if cache_artifacts_dir.exists() and any(cache_artifacts_dir.iterdir()):
+            return cache_artifacts_dir
+        
+        # Attempt automatic download from GitHub Releases (legacy fallback)
+        try:
+            self._download_artifacts_from_github(cache_artifacts_dir)
+            if cache_artifacts_dir.exists() and any(cache_artifacts_dir.iterdir()):
+                return cache_artifacts_dir
+        except Exception as e:
+            # Silently fail - models will be downloaded from Hugging Face Hub on-demand
+            pass
+        
+        # Return default path even if it doesn't exist
+        # Models will be downloaded from Hugging Face Hub on-demand in _load_model()
         return current_dir / 'artifacts'
+    
+    def _get_cache_dir(self) -> Path:
+        """Get cache directory for downloaded artifacts."""
+        home = Path.home()
+        cache_dir = home / '.cache' / 'german-phoneme-validator'
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        return cache_dir
+    
+    def _download_artifacts_from_github(self, target_dir: Path) -> None:
+        """
+        Download artifacts from GitHub Releases automatically.
+        
+        This function downloads the artifacts.tar.gz archive from the latest GitHub Release
+        and extracts it to the target directory. The artifacts are cached for future use.
+        
+        Args:
+            target_dir: Directory to extract artifacts to
+        """
+        # Get version to determine release tag
+        try:
+            import german_phoneme_validator
+            version = german_phoneme_validator.__version__
+        except (ImportError, AttributeError):
+            version = "latest"
+        
+        github_repo = "SergejKurtasch/german-phoneme-validator"
+        
+        # Use version tag or 'latest' for GitHub Releases
+        # Format: v1.0.1 -> v1.0.1, or use 'latest' for newest release
+        release_tag = f"v{version}" if version != "latest" else "latest"
+        
+        # URL for artifacts archive in GitHub Releases
+        # The archive should be named 'artifacts.tar.gz' in the release assets
+        artifacts_url = (
+            f"https://github.com/{github_repo}/releases/download/{release_tag}/artifacts.tar.gz"
+        )
+        
+        print(f"Artifacts not found locally. Downloading from GitHub Releases...")
+        print(f"Release: {release_tag}")
+        print(f"URL: {artifacts_url}")
+        
+        # Create target directory
+        target_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create temporary file for download
+        temp_file = target_dir.parent / 'artifacts_temp.tar.gz'
+        
+        try:
+            # Download archive with progress
+            urllib.request.urlretrieve(
+                artifacts_url, 
+                temp_file, 
+                reporthook=self._download_progress_hook
+            )
+            
+            # Extract archive
+            print(f"Extracting artifacts to {target_dir}...")
+            with tarfile.open(temp_file, 'r:gz') as tar:
+                tar.extractall(path=target_dir.parent)
+            
+            # Verify extraction (artifacts should be in target_dir after extraction)
+            if not target_dir.exists() or not any(target_dir.iterdir()):
+                # If extractall created artifacts in parent, move them
+                potential_artifacts = target_dir.parent / 'artifacts'
+                if potential_artifacts.exists() and potential_artifacts != target_dir:
+                    if target_dir.exists():
+                        shutil.rmtree(target_dir)
+                    potential_artifacts.rename(target_dir)
+            
+            print(f"Artifacts successfully downloaded and extracted to: {target_dir}")
+            
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise FileNotFoundError(
+                    f"Artifacts archive not found at {artifacts_url}. "
+                    f"Please ensure artifacts.tar.gz is attached to release {release_tag}."
+                )
+            raise
+        finally:
+            # Clean up temporary file
+            if temp_file.exists():
+                temp_file.unlink()
+    
+    def _download_progress_hook(self, count: int, block_size: int, total_size: int) -> None:
+        """Progress hook for download (called by urllib.request.urlretrieve)."""
+        if total_size > 0:
+            percent = int(count * block_size * 100 / total_size)
+            # Print progress every 5%
+            if percent % 5 == 0:
+                downloaded_mb = count * block_size / (1024 * 1024)
+                total_mb = total_size / (1024 * 1024) if total_size > 0 else 0
+                print(f"Download progress: {percent}% ({downloaded_mb:.1f} MB / {total_mb:.1f} MB)")
     
     def _get_device(self) -> str:
         """Auto-detect device."""
@@ -148,17 +362,51 @@ class PhonemeValidator:
         return "cpu"
     
     def _discover_phoneme_pairs(self) -> List[str]:
-        """Discover available phoneme pairs from artifacts directory."""
+        """
+        Discover available phoneme pairs from artifacts directory.
+        
+        Searches for folders with format {normalized_pair}_model and restores
+        original pair names from config.json or uses reverse mapping.
+        
+        If artifacts_dir is None or doesn't exist, returns empty list.
+        Models will be discovered on-demand when loaded from Hugging Face Hub.
+        """
         pairs = []
-        if not self.artifacts_dir.exists():
+        if self.artifacts_dir is None or not self.artifacts_dir.exists():
             return pairs
         
+        # Create reverse mapping: normalized name -> original name
+        normalized_to_original = {}
+        for original_pair in CLASS_MAPPING.keys():
+            normalized_folder = _phoneme_pair_to_folder_name(original_pair)
+            normalized_to_original[normalized_folder] = original_pair
+        
         for item in self.artifacts_dir.iterdir():
-            if item.is_dir() and item.name.endswith('_dl_models_with_context_v2'):
-                pair_name = item.name.replace('_dl_models_with_context_v2', '')
-                model_path = item / 'improved_models' / 'hybrid_cnn_mlp_v4_3_enhanced' / 'best_model.pt'
-                if model_path.exists():
-                    pairs.append(pair_name)
+            if item.is_dir() and item.name.endswith('_model'):
+                # Try to find original name through reverse mapping
+                original_pair = normalized_to_original.get(item.name)
+                
+                # If not found in mapping, try to restore from config.json (now in folder root)
+                if original_pair is None:
+                    config_path = item / 'config.json'
+                    if config_path.exists():
+                        try:
+                            with open(config_path, 'r', encoding='utf-8') as f:
+                                config = json.load(f)
+                                original_pair = config.get('phoneme_pair')
+                        except (json.JSONDecodeError, IOError):
+                            pass
+                
+                # If still not found, try to restore from folder name (fallback)
+                if original_pair is None:
+                    # This should not happen, but in case config.json is missing
+                    continue
+                
+                # Check model presence (now in folder root)
+                model_path = item / 'best_model.pt'
+                if model_path.exists() and original_pair:
+                    pairs.append(original_pair)
+        
         return sorted(pairs)
     
     def _normalize_feature_vector(self, vector: np.ndarray, expected_size: int) -> np.ndarray:
@@ -219,6 +467,11 @@ class PhonemeValidator:
         """
         Load model, scaler, and feature columns for a phoneme pair.
         
+        Priority:
+        1. Check cache
+        2. Try local artifacts_dir (if set and folder exists)
+        3. Download from Hugging Face Hub via get_model_assets()
+        
         Args:
             phoneme_pair: Phoneme pair name (e.g., 'b-p')
             
@@ -228,25 +481,37 @@ class PhonemeValidator:
         if phoneme_pair in self.models_cache:
             return self.models_cache[phoneme_pair]
         
-        model_dir = (
-            self.artifacts_dir / 
-            f"{phoneme_pair}_dl_models_with_context_v2" / 
-            'improved_models' / 
-            'hybrid_cnn_mlp_v4_3_enhanced'
-        )
+        # Convert original pair name to folder name
+        folder_name = _phoneme_pair_to_folder_name(phoneme_pair)
         
-        if not model_dir.exists():
+        # Try local artifacts_dir first (for development/backwards compatibility)
+        model_dir = None
+        if self.artifacts_dir and (self.artifacts_dir / folder_name).exists():
+            model_dir = self.artifacts_dir / folder_name
+        else:
+            # Fallback: download from Hugging Face Hub
+            try:
+                from .downloader import get_model_assets
+                model_dir = get_model_assets(phoneme_pair)
+            except Exception as e:
+                warnings.warn(
+                    f"Failed to load model from Hugging Face Hub for pair '{phoneme_pair}': {e}. "
+                    f"Make sure huggingface_hub is installed and internet connection is available."
+                )
+                return None
+        
+        if model_dir is None or not model_dir.exists():
             return None
         
         try:
-            # Load model
+            # Load model (files are now directly in the model folder root)
             model_path = model_dir / 'best_model.pt'
             if not model_path.exists():
                 return None
             
             checkpoint = torch.load(model_path, map_location=self.device)
             
-            # Load config to get n_features
+            # Load config to get n_features (config.json is now in the model folder root)
             config_path = model_dir / 'config.json'
             if config_path.exists():
                 with open(config_path, 'r') as f:
@@ -262,13 +527,13 @@ class PhonemeValidator:
             model.eval()
             
             # Load scaler
-            scaler_path = self.artifacts_dir / f"{phoneme_pair}_dl_models_with_context_v2" / 'feature_scaler.joblib'
+            scaler_path = model_dir / 'feature_scaler.joblib'
             scaler = None
             if scaler_path.exists():
                 scaler = joblib.load(scaler_path)
             
             # Load feature columns
-            feature_cols_path = self.artifacts_dir / f"{phoneme_pair}_dl_models_with_context_v2" / 'feature_cols.json'
+            feature_cols_path = model_dir / 'feature_cols.json'
             feature_cols = []
             if feature_cols_path.exists():
                 with open(feature_cols_path, 'r') as f:
