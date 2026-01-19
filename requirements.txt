@@ -13,7 +13,7 @@ torchaudio>=2.0.0  # Optional: Not directly used in core modules, but may be use
 # CRITICAL: NumPy < 2.0 required for joblib/scikit-learn compatibility
 numpy<2.0,>=1.21.0  # Required: Used throughout core modules
 # CRITICAL: scikit-learn < 1.4 required for joblib compatibility
-scikit-learn<1.4,>=1.0.0  # Required: Needed by joblib for loading scalers
+scikit-learn>=1.0.0,<1.7  # Required: Needed by joblib for loading scalers
 scipy>=1.7.0  # Required: Used in core/feature_extraction.py for signal processing
 joblib>=1.0.0  # Required: Used in core/validator.py for loading model scalers
 
