@@ -6,6 +6,7 @@ Universal installer for any Python project.
 from setuptools import setup
 from pathlib import Path
 import re
+import warnings
 
 # =============================================================================
 # Utility functions for reading package metadata
@@ -31,23 +32,48 @@ def get_version():
 def parse_requirements(requirements_file="requirements.txt"):
     """Parse requirements.txt and return list of dependencies."""
     requirements = []
-    file_path = Path(__file__).parent / requirements_file
     
-    if not file_path.exists():
+    # Try multiple paths to find requirements.txt
+    # During build, __file__ may point to different locations
+    possible_paths = [
+        Path(__file__).parent / requirements_file,  # Standard location
+        Path.cwd() / requirements_file,  # Current working directory
+    ]
+    
+    file_path = None
+    for path in possible_paths:
+        if path.exists():
+            file_path = path
+            break
+    
+    if file_path is None:
+        # Log warning but don't fail - return empty list
+        warnings.warn(
+            f"Could not find {requirements_file} in any of the expected locations: "
+            f"{[str(p) for p in possible_paths]}. Dependencies may not be installed automatically.",
+            UserWarning
+        )
         return requirements
     
-    with open(file_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            # Skip empty lines, comments, and section headers
-            if not line or line.startswith("#") or line.startswith("="):
-                continue
-            # Extract package name and version (remove inline comments)
-            match = re.match(r"^([^#]+)", line)
-            if match:
-                req = match.group(1).strip()
-                if req:
-                    requirements.append(req)
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                # Skip empty lines, comments, and section headers
+                if not line or line.startswith("#") or line.startswith("="):
+                    continue
+                # Extract package name and version (remove inline comments)
+                match = re.match(r"^([^#]+)", line)
+                if match:
+                    req = match.group(1).strip()
+                    if req:
+                        requirements.append(req)
+    except Exception as e:
+        warnings.warn(
+            f"Error reading {requirements_file}: {e}. Dependencies may not be installed automatically.",
+            UserWarning
+        )
+        return requirements
     
     return requirements
 
