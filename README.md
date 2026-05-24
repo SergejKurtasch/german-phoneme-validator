@@ -2,6 +2,16 @@
 
 A production-ready Python module for acoustic validation of German phoneme pronunciation. This module implements the Research Brief specification for L2 German pronunciation assessment.
 
+## Try it Online
+
+No installation needed. Open the live demo on Hugging Face Spaces and test the validator directly in your browser:
+
+**[German Pronunciation Trainer on HF Spaces](https://huggingface.co/spaces/SergejKurt/german-pronunciation-trainer)**
+
+Use this link to evaluate pronunciation in production without building anything locally.
+
+---
+
 ## Overview
 
 This module provides acoustic feature-based validation to confirm whether a German phoneme was pronounced correctly by a second language learner, using only acoustic evidence from the audio signal.

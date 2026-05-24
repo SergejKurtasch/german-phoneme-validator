@@ -566,7 +566,41 @@ class PhonemeValidator:
             print(f"Unexpected error loading model for {phoneme_pair}: {e}")
             print(traceback.format_exc())
             return None
-    
+
+    def preload_all_models(self, progress_callback=None) -> int:
+        """
+        Eagerly load all available phoneme pair models into cache.
+        Eliminates first-call latency for 2-step validation.
+
+        Args:
+            progress_callback: Optional callable(pair: str, index: int, total: int)
+                called before each model is loaded so callers can report progress.
+
+        Returns:
+            Number of successfully loaded models.
+        """
+        pairs = list(self.available_pairs) if self.available_pairs else list(CLASS_MAPPING.keys())
+        total = len(pairs)
+        loaded = 0
+        for i, pair in enumerate(pairs):
+            if progress_callback:
+                try:
+                    progress_callback(pair, i, total)
+                except Exception:
+                    pass
+            if pair in self.models_cache:
+                loaded += 1
+                continue
+            try:
+                result = self._load_model(pair)
+                if result is not None:
+                    loaded += 1
+            except Exception as e:
+                print(f"Warning: preload_all_models: failed for '{pair}': {e}")
+        print(f"Validator preload complete: {loaded}/{total} models in cache")
+        return loaded
+
+
     def _get_class_mapping(self, phoneme_pair: str) -> Dict[int, str]:
         """
         Get class-to-phoneme mapping for a phoneme pair.
