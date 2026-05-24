@@ -20,7 +20,7 @@ except ImportError:
     )
 
 # Default repository ID for phoneme models
-DEFAULT_REPO_ID = "SergejKurtasch/german-phoneme-models"
+DEFAULT_REPO_ID = "SergejKurt/german-phoneme-models"
 
 
 def _phoneme_pair_to_folder_name(pair_name: str) -> str:
@@ -42,7 +42,7 @@ def _phoneme_pair_to_folder_name(pair_name: str) -> str:
 
 def get_model_assets(
     phoneme_pair: str,
-    repo_id: str = DEFAULT_REPO_ID,
+    repo_id: Optional[str] = None,
     local_files_only: bool = False
 ) -> Path:
     """
@@ -77,7 +77,9 @@ def get_model_assets(
     
     # Normalize phoneme pair to folder name
     folder_name = _phoneme_pair_to_folder_name(phoneme_pair)
-    
+    if repo_id is None:
+        repo_id = DEFAULT_REPO_ID
+
     try:
         # Download or retrieve cached model folder
         # allow_patterns ensures we only download the specific model folder
